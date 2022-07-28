@@ -13,6 +13,7 @@ error InsufficientOutputAmount();
 error InsufficientLiquidity();
 error InvalidProduct();
 error BalanceOverflow();
+error AlreadyInitialized();
 
 interface IERC20 {
     function balanceOf(address) external returns (uint256);
@@ -116,6 +117,15 @@ contract Pair is ERC20, Math {
 
         emit Swap(msg.sender, amountOut0, amountOut1, to);
 
+    }
+
+    function initialize(address _token0, address _token1) public {
+        if (_token0 != address(0) || _token1 != address(0)){
+            revert AlreadyInitialized();
+        }
+
+        token0 = _token0;
+        token1 = _token1;
     }
 
     function getReserves() public view returns (
