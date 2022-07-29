@@ -2,6 +2,7 @@ pragma solidity ^0.8.9;
 
 import "./interfaces/ISwapFactory.sol";
 import "./interfaces/IPair.sol";
+import "./SwapLibrary.sol";
 
 
 contract Router {
@@ -34,15 +35,45 @@ contract Router {
             amountMinB
         );
 
-        address pairAddress = ZuniswapV2Library.pairFor(
+        address pairAddress = SwapLibrary.pairFor(
             address(factory),
             tokenA,
             tokenB
         );
         _safeTransferFrom(tokenA, msg.sender, pairAddress, amountA);
         _safeTransferFrom(tokenB, msg.sender, pairAddress, amountB);
-        liquidity = IZuniswapV2Pair(pairAddress).mint(to);
+        liquidity = IPair(pairAddress).mint(to);
 
+    }
+
+    function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256 amountMinA,
+        uint256 amountMinB, address to) public returns (uint256 amountA, uint256 amountB) {
+            address pair = SwapLibrary.pairFor(address(factory), tokenA, tokenB);
+            IPair(pair).transferFrom(msg.sender, pair, liquidity);
+            (amountA, amountB) = IPair(pair).burn(to);
+
+            if (amountA < amountAMin)
+                revert InsufficientAAmount();
+
+            if (amountB < amountMinB)
+                revert InsufficientBAmount();
+    }
+
+    function _swap(uint256[] memory amounts, address[] path, address _to) internal {
+        for (uint256 i; i < path.length - 1; i++){
+            (address input, address output) = (path[i], path[i + 1]);
+            (address token0, ) = SwapLibrary.sortTokens(input, output);
+
+            uint256 amountOut = amounts[i + 1];
+            (uint256 amountOut0, uint256 amountOut1) = input == token0 
+                ? (uint256(0), amountOut) : (amountOut, uin256(0));
+
+            address to = i < path.length - 2 ? SwapLibrary.pairFor(address(factory), 
+                output, path[i + 2]) : to;
+            
+            IPair(SwapLibrary.pairFor(address(factory), input, output)).swap(
+                amountOut0, amountOut1, to, "");
+        }
     }
 
     function _calculateLiquidity(            
@@ -80,5 +111,36 @@ contract Router {
                 
 
     }
+
+
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) 
+        public pure returns (uint256) {
+
+            if (amountIn == 0)
+                revert InsufficientAmount();
+
+            if (reserveIn == 0 || reserveOut == 0)
+                revert InsufficientLiquidity();
+
+            uint256 amountInWithFee = amountIn * 997;
+            uint256 numerator = amountInWithFee * reserveOut;
+            uint256 denominator = (reserveIn * 1000) + amountInWithFee;
+            
+            return numerator / denominator;
+        }
+
+    function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin,
+        address[] calldata path, address to) public returns (uint256[] memory amounts) {
+
+            amounts = SwapLibrary.getAmountsOut(address(factory), amountIn);
+
+            if (amounts[amounts.length - 1] < amountOutMin)
+                revert InsufficientOutputAmount();
+
+            _safeTransferFrom(path[0], msg.sender,
+                 SwapLibrary.pairFor(address(factory), path[0], path[1]), amounts[0]);
+            
+            _swap(amounts, path, to);
+        }
 
 }

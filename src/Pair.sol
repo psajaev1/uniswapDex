@@ -36,9 +36,18 @@ contract Pair is ERC20, Math {
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
 
-    event Burn(address indexed sender, uint256 amount0, uint256 amount1);
+    bool private isEntered;
+
+    event Burn(address indexed sender, uint256 amount0, uint256 amount1, address to);
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Sync(uint256 reserve0, uint256 reserve1);
+
+    modifier nonReentrant() {
+        require(!isEntered);
+        isEntered = true;
+        _;
+        isEntered = false;
+    }
 
     // start working on constructor when you get back 
     constructor(address _token0, address _token1) ERC20("Coinswap Pair", "CSP", 18){
@@ -63,60 +72,63 @@ contract Pair is ERC20, Math {
         
     }
 
-    function burn() public {
+    function burn(address to) public returns (uint256 amount0, uint256 amount1) {
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
-        uint256 liquidity = balanceOf[msg.sender];
+        uint256 liquidity = balanceOf[address(this)];
 
-        uint256 amount0 = (liquidity * balance0) / totalSupply;
-        uint256 amount1 = (liquidity * balance1) / totalSupply;
+        amount0 = (liquidity * balance0) / totalSupply;
+        amount1 = (liquidity * balance1) / totalSupply;
 
-        if (amount0 <= 0 || amount1 <= 0) revert InsufficientLiquidityBurned();
+        if (amount0 == 0 || amount1 == 0) revert InsufficientLiquidityBurned();
 
-        _burn(msg.sender, liquidity);
-        _safeTransfer(token0, msg.sender, amount0);
-        _safeTransfer(token1, msg.sender, amount1);
+        _burn(address(this), liquidity);
+        _safeTransfer(token0, address(this), amount0);
+        _safeTransfer(token1, address(this), amount1);
 
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
         _update(balance0, balance1);
 
-        emit Burn(msg.sender, amount0, amount1);
+        emit Burn(msg.sender, amount0, amount1, to);
 
     }
 
 
-    function swap(uint256 amountOut0, uint256 amountOut1, address to) public {
-        if (amountOut0 == 0 && amountOut1 == 0){
-            revert InsufficientOutputAmount();
-        }
-
-        (uint112 _reserve0, uint112 _reserve1, ) = getReserves();
-
-        if (amountOut0 > _reserve0 || amountOut1 > _reserve1){
-            revert InsufficientLiquidity();
-        }
-
-        uint256 balance0 = IERC20(token0).balanceOf(address(this)) - amountOut0;
-        uint256 balance1 = IERC20(token1).balanceOf(address(this)) - amountOut1;
-
-        if (balance0 * balance1 < uint256(_reserve0) * uint256(_reserve1)){
-            revert InvalidProduct();
-        }
-
-        _update(balance0, balance1, _reserve0, _reserve1);
-
-        if (amountOut0 > 0) {
+    function swap(uint256 amountOut0, uint256 amountOut1, address to, bytes calldata data)
+     public nonReentrant {
+        
+        if (amountOut0 > 0)
             _safeTransfer(token0, to, amountOut0);
-        }
-
-        if (amountOut1 > 0){
+        
+        if (amountOut1 > 0)
             _safeTransfer(token1, to, amountOut1);
-        }
 
+        if (data.length > 0)
+            IZuniswapV2Callee(to).swapCall(msg.sender, amountOut0, amountOut1, data);
+
+        uint256 balance0 = IERC20(token0).balance(address(this));
+        uint256 balance1 = IERC20(token1).balance(address(this));
+
+        uint256 amountIn0 = balance0 > reserve0 - amountOut0 ? balance0 - (reserve0 - amountOut0)
+             : 0;
+        uint256 amountIn1 = balance1 > reserve1 - amountOut1 ? balance1 - (reserve1 - amountOut1)
+            : 0;
+
+        if (amountIn0 == 0 && amountIn1 == 0)
+            revert InsufficientInputAmount();
+
+        uint256 balanceAdjusted0 = (balance0 * 1000) - (amountIn0 * 3);
+        uint256 balanceAdjusted1 = (balance1 * 1000) - (amountIn1 * 3);
+
+        if (balanceAdjusted0 * balanceAdjusted1 < uint256(reserve0) * uint256(reserve1) * 1000**2)
+            revert InvalidProduct();
+
+        _update(balance0, balance1, reserve0, reserve1);
         emit Swap(msg.sender, amountOut0, amountOut1, to);
 
+        
     }
 
     function initialize(address _token0, address _token1) public {
