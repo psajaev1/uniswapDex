@@ -10,6 +10,7 @@ contract Router {
     error InsufficientAAmount();
     error InsufficientBAmount();
     error SafeTransferFailed();
+    error InsufficientOutputAmount();
 
     ISwapFactory factory;
 
@@ -52,24 +53,24 @@ contract Router {
             IPair(pair).transferFrom(msg.sender, pair, liquidity);
             (amountA, amountB) = IPair(pair).burn(to);
 
-            if (amountA < amountAMin)
+            if (amountA < amountMinA)
                 revert InsufficientAAmount();
 
             if (amountB < amountMinB)
                 revert InsufficientBAmount();
     }
 
-    function _swap(uint256[] memory amounts, address[] path, address _to) internal {
+    function _swap(uint256[] memory amounts, address[] memory path, address _to) internal {
         for (uint256 i; i < path.length - 1; i++){
             (address input, address output) = (path[i], path[i + 1]);
             (address token0, ) = SwapLibrary.sortTokens(input, output);
 
             uint256 amountOut = amounts[i + 1];
             (uint256 amountOut0, uint256 amountOut1) = input == token0 
-                ? (uint256(0), amountOut) : (amountOut, uin256(0));
+                ? (uint256(0), amountOut) : (amountOut, uint256(0));
 
             address to = i < path.length - 2 ? SwapLibrary.pairFor(address(factory), 
-                output, path[i + 2]) : to;
+                output, path[i + 2]) : _to;
             
             IPair(SwapLibrary.pairFor(address(factory), input, output)).swap(
                 amountOut0, amountOut1, to, "");
@@ -113,22 +114,6 @@ contract Router {
     }
 
 
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) 
-        public pure returns (uint256) {
-
-            if (amountIn == 0)
-                revert InsufficientAmount();
-
-            if (reserveIn == 0 || reserveOut == 0)
-                revert InsufficientLiquidity();
-
-            uint256 amountInWithFee = amountIn * 997;
-            uint256 numerator = amountInWithFee * reserveOut;
-            uint256 denominator = (reserveIn * 1000) + amountInWithFee;
-            
-            return numerator / denominator;
-        }
-
     function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin,
         address[] calldata path, address to) public returns (uint256[] memory amounts) {
 
@@ -142,5 +127,20 @@ contract Router {
             
             _swap(amounts, path, to);
         }
+
+    function _safeTransferFrom(address token, address from, address to, uint256 value) private {
+
+
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
+                from,
+                to,
+                value
+            )
+        );
+        if (!success || (data.length != 0 && !abi.decode(data, (bool))))
+            revert SafeTransferFailed();    
+    }
 
 }

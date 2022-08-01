@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.9;
 
 import "./interfaces/IPair.sol";
-import "./Pair.sol";
+import {Pair} from "./Pair.sol";
 
 library SwapLibrary {
 
@@ -28,6 +29,22 @@ library SwapLibrary {
             )))));
         }
 
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) 
+        public pure returns (uint256) {
+
+            if (amountIn == 0)
+                revert InsufficientAmount();
+
+            if (reserveIn == 0 || reserveOut == 0)
+                revert InsufficientLiquidity();
+
+            uint256 amountInWithFee = amountIn * 997;
+            uint256 numerator = amountInWithFee * reserveOut;
+            uint256 denominator = (reserveIn * 1000) + amountInWithFee;
+            
+            return numerator / denominator;
+        }
+
     function quote(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         public pure returns(uint256 amountOut) {
             if (amountIn == 0){
@@ -38,5 +55,11 @@ library SwapLibrary {
             }
             return (amountIn * reserveOut) / reserveIn;
         }
+
+    function sortTokens(address tokenA, address tokenB)
+        internal pure returns(address token0, address token1) {
+            return tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        
+    }
 
 }

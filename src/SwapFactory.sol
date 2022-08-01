@@ -1,6 +1,7 @@
 pragma solidity ^0.8.9;
 
 import "./Pair.sol";
+import "./interfaces/IPair.sol";
 
 
 contract SwapFactory {

@@ -4,12 +4,14 @@ pragma solidity ^0.8.9;
 import "solmate/tokens/ERC20.sol";
 import "./libraries/Math.sol";
 import "./libraries/UQ112x112.sol";
+import "./interfaces/ISwapCallee.sol";
 
 
 error InsufficientLiquidityMinted();
 error InsufficientLiquidityBurned();
 error TransferFailed();
 error InsufficientOutputAmount();
+error InsufficientInputAmount();
 error InsufficientLiquidity();
 error InvalidProduct();
 error BalanceOverflow();
@@ -41,6 +43,7 @@ contract Pair is ERC20, Math {
     event Burn(address indexed sender, uint256 amount0, uint256 amount1, address to);
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
     event Sync(uint256 reserve0, uint256 reserve1);
+    event Swap(address indexed sender, uint256 amountOut0, uint256 amountOut1, address indexed to);
 
     modifier nonReentrant() {
         require(!isEntered);
@@ -106,7 +109,7 @@ contract Pair is ERC20, Math {
             _safeTransfer(token1, to, amountOut1);
 
         if (data.length > 0)
-            IZuniswapV2Callee(to).swapCall(msg.sender, amountOut0, amountOut1, data);
+            SwapCallee(to).swapCall(msg.sender, amountOut0, amountOut1, data);
 
         uint256 balance0 = IERC20(token0).balance(address(this));
         uint256 balance1 = IERC20(token1).balance(address(this));
