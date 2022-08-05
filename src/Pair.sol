@@ -64,11 +64,12 @@ contract Pair is ERC20, Math {
         token1 = _token1;
     }
 
-    function mint() public {
+    function mint(address to) public {
+       (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
-        uint256 amount0 = balance0 - reserve0;
-        uint256 amount1 = balance1 - reserve1;
+        uint256 amount0 = balance0 - reserve0_;
+        uint256 amount1 = balance1 - reserve1_;
 
         uint256 liquidity;
 
@@ -78,6 +79,15 @@ contract Pair is ERC20, Math {
         } else {
             liquidity = Math.min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1);
         } 
+
+        if (liquidity <= 0)
+            revert InsufficientLiquidityMinted();
+
+        _mint(to, liquidity);
+
+        _update(balance0, balance1, reserve0_, reserve1_);
+
+        emit Mint(to, amount0, amount1);
         
     }
 
@@ -92,8 +102,8 @@ contract Pair is ERC20, Math {
         if (amount0 == 0 || amount1 == 0) revert InsufficientLiquidityBurned();
 
         _burn(address(this), liquidity);
-        _safeTransfer(token0, address(this), amount0);
-        _safeTransfer(token1, address(this), amount1);
+        _safeTransfer(token0, to, amount0);
+        _safeTransfer(token1, to, amount1);
 
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
@@ -108,7 +118,15 @@ contract Pair is ERC20, Math {
 
     function swap(uint256 amountOut0, uint256 amountOut1, address to, bytes calldata data)
      public nonReentrant {
-        
+
+        if (amountOut0 == 0 && amountOut1 == 0)
+            revert InsufficientOutputAmount();
+
+        (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+
+        if (amountOut0 > reserve0_ || amountOut1 > reserve1_)
+            revert InsufficientLiquidity();     
+
         if (amountOut0 > 0)
             _safeTransfer(token0, to, amountOut0);
         
@@ -141,7 +159,15 @@ contract Pair is ERC20, Math {
         
     }
 
-
+    function sync() public {
+        (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+        _update(
+            IERC20(token0).balanceOf(address(this)),
+            IERC20(token1).balanceOf(address(this)),
+            reserve0_,
+            reserve1_
+        );
+    }
 
     function getReserves() public view returns (
         uint112,
@@ -152,7 +178,7 @@ contract Pair is ERC20, Math {
         return (reserve0, reserve1, 0);
     }
 
-    function _update(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
+    function _update(uint256 balance0, uint256 balance1, uint112 reserve0_, uint112 reserve1_) private {
         
         if (balance0 > type(uint112).max || balance1 > type(uint112).max){
             revert BalanceOverflow();
@@ -161,9 +187,9 @@ contract Pair is ERC20, Math {
         unchecked {
             uint32 timeElapsed = uint32(block.timestamp) - blockTimestampLast;
 
-            if (timeElapsed > 0 && _reserve0 > 0 && _reserve1 > 0){
-                price0CumulativeLast += uint256(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
-                price1CumulativeLast += uint256(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
+            if (timeElapsed > 0 && reserve0_ > 0 && reserve1_ > 0){
+                price0CumulativeLast += uint256(UQ112x112.encode(reserve1_).uqdiv(reserve0_)) * timeElapsed;
+                price1CumulativeLast += uint256(UQ112x112.encode(reserve0_).uqdiv(reserve1_)) * timeElapsed;
             }
         }
         
