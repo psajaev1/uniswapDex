@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: UNLICENSED
+
 pragma solidity ^0.8.9;
 
 import "./interfaces/ISwapFactory.sol";
@@ -117,7 +119,7 @@ contract Router {
     function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin,
         address[] calldata path, address to) public returns (uint256[] memory amounts) {
 
-            amounts = SwapLibrary.getAmountsOut(address(factory), amountIn);
+            amounts = SwapLibrary.getAmountsOut(address(factory), amountIn, path);
 
             if (amounts[amounts.length - 1] < amountOutMin)
                 revert InsufficientOutputAmount();

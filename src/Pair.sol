@@ -24,6 +24,7 @@ interface IERC20 {
 }
 
 contract Pair is ERC20, Math {
+    using UQ112x112 for uint224;
 
     uint256 constant MINIMUM_LIQUIDITY = 1000;
 
@@ -52,8 +53,13 @@ contract Pair is ERC20, Math {
         isEntered = false;
     }
 
-    // start working on constructor when you get back 
-    constructor(address _token0, address _token1) ERC20("Coinswap Pair", "CSP", 18){
+    constructor() ERC20("Coinswap Pair", "CSP", 18){}
+
+    function initialize(address _token0, address _token1) public {
+        if (token0 != address(0) || token1 != address(0)){
+            revert AlreadyInitialized();
+        }
+
         token0 = _token0;
         token1 = _token1;
     }
@@ -92,7 +98,8 @@ contract Pair is ERC20, Math {
         balance0 = IERC20(token0).balanceOf(address(this));
         balance1 = IERC20(token1).balanceOf(address(this));
 
-        _update(balance0, balance1);
+        (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
+        _update(balance0, balance1, reserve0_, reserve1_);
 
         emit Burn(msg.sender, amount0, amount1, to);
 
@@ -111,8 +118,8 @@ contract Pair is ERC20, Math {
         if (data.length > 0)
             SwapCallee(to).swapCall(msg.sender, amountOut0, amountOut1, data);
 
-        uint256 balance0 = IERC20(token0).balance(address(this));
-        uint256 balance1 = IERC20(token1).balance(address(this));
+        uint256 balance0 = IERC20(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20(token1).balanceOf(address(this));
 
         uint256 amountIn0 = balance0 > reserve0 - amountOut0 ? balance0 - (reserve0 - amountOut0)
              : 0;
@@ -134,14 +141,7 @@ contract Pair is ERC20, Math {
         
     }
 
-    function initialize(address _token0, address _token1) public {
-        if (_token0 != address(0) || _token1 != address(0)){
-            revert AlreadyInitialized();
-        }
 
-        token0 = _token0;
-        token1 = _token1;
-    }
 
     function getReserves() public view returns (
         uint112,

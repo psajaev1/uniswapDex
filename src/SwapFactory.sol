@@ -1,3 +1,6 @@
+
+// SPDX-License-Identifier: UNLICENSED
+
 pragma solidity ^0.8.9;
 
 import "./Pair.sol";
@@ -33,7 +36,7 @@ contract SwapFactory {
         bytes memory bytecode = type(Pair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
         assembly {
-            pairing := create2(0, add(bytecode, 32), moload(bytecode), salt)
+            pairing := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
 
         IPair(pairing).initialize(token0, token1);
@@ -44,8 +47,5 @@ contract SwapFactory {
 
         emit PairCreated(token0, token1, pairing, allPairings.length);
 
-
-
     }
-
 }

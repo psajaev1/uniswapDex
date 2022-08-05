@@ -13,4 +13,10 @@ interface IPair {
         );
 
     function mint(address) external returns (uint256);
+
+    function burn(address) external returns (uint256, uint256);
+
+    function swap(uint256, uint256, address, bytes calldata) external;
+
+    function transferFrom(address, address, uint256) external returns (bool);
 }

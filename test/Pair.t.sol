@@ -3,6 +3,8 @@ pragma solidity ^0.8.9;
 
 import "forge-std/Test.sol";
 import "../src/Pair.sol";
+import "../src/SwapFactory.sol";
+import "../src/libraries/UQ112x112.sol";
 import "./mocks/ERC20Mintable.sol";
 
 
@@ -17,10 +19,19 @@ contract PairTest is Test {
         token0 = new ERC20Mintable("A", "TKNA");
         token1 = new ERC20Mintable("B", "TKNB");
 
-        pair = new Pair(address(token0), address(token1));
+        SwapFactory factory = new SwapFactory();
 
-        token0.mint(10 ether, address(testUser));
-        token1.mint(10 ether, address(testUser));
+        address pairAddress = factory.createPairing(
+            address(token0),
+            address(token1)
+        );
+        // pair = Pair(pairAddress);
+
+        // token0.mint(10 ether, address(this));
+        // token1.mint(10 ether, address(this));
+
+        // token0.mint(10 ether, address(testUser));
+        // token1.mint(10 ether, address(testUser));
 
     }
 
@@ -79,7 +90,7 @@ contract PairTest is Test {
         token1.transfer(address(pair), 1 ether);
 
         pair.mint();
-        pair.burn();    
+        pair.burn(address(this));    
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1000, 1000);
@@ -101,7 +112,7 @@ contract PairTest is Test {
 
         pair.mint(); // + 1 LP
 
-        pair.burn();
+        pair.burn(address(this));    
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1500, 1000);
@@ -124,7 +135,7 @@ contract PairTest is Test {
 
         assertEq(pair.balanceOf(address(this)), 1);
 
-        pair.burn();
+        pair.burn(address(this));    
 
         assertEq(pair.balanceOf(address(this)), 0);
         assertReserves(1.5 ether, 1 ether);
@@ -150,8 +161,10 @@ contract TestUser {
         Pair(pairAddress_).mint();
     }
 
-    function withdrawLiquidity(address pairAddress_) public {
-        Pair(pairAddress_).burn();
+    function removeLiquidity(address pairAddress_) public {
+        uint256 liquidity = ERC20(pairAddress_).balanceOf(address(this));
+        ERC20(pairAddress_).transfer(pairAddress_, liquidity);
+        Pair(pairAddress_).burn(pairAddress_);
     }
 }
 
