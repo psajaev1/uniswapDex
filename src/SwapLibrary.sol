@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 import "./interfaces/IPair.sol";
 import {Pair} from "./Pair.sol";
 
+
 library SwapLibrary {
 
     error InsufficientAmount();
@@ -63,6 +64,22 @@ library SwapLibrary {
 
         return amounts;       
      }
+
+    function getAmountIn(
+        uint256 amountOut,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) public pure returns (uint256) {
+        if (amountOut == 0) revert InsufficientAmount();
+        if (reserveIn == 0 || reserveOut == 0) revert InsufficientLiquidity();
+
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+
+        return (numerator / denominator) + 1;
+
+    }
+    
 
     function quote(uint256 amountIn, uint256 reserveIn, uint256 reserveOut)
         public pure returns(uint256 amountOut) {

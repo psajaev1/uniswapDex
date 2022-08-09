@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 interface IPair {
-    function initialize(address, address) external;
+ function initialize(address, address) external;
 
     function getReserves()
         external
@@ -16,7 +16,16 @@ interface IPair {
 
     function burn(address) external returns (uint256, uint256);
 
-    function swap(uint256, uint256, address, bytes calldata) external;
+    function transferFrom(
+        address,
+        address,
+        uint256
+    ) external returns (bool);
 
-    function transferFrom(address, address, uint256) external returns (bool);
+    function swap(
+        uint256,
+        uint256,
+        address,
+        bytes calldata
+    ) external;
 }

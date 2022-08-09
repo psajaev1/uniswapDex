@@ -6,28 +6,34 @@ import "./interfaces/ISwapFactory.sol";
 import "./interfaces/IPair.sol";
 import "./SwapLibrary.sol";
 
+import "forge-std/console2.sol";
+
 
 contract Router {
+
+
+
+    ISwapFactory factory;
+
 
     error InsufficientAAmount();
     error InsufficientBAmount();
     error SafeTransferFailed();
     error InsufficientOutputAmount();
 
-    ISwapFactory factory;
 
     constructor(address factoryAddress) {
         factory = ISwapFactory(factoryAddress);
     }
 
     function addLiquidity(address tokenA, address tokenB, uint256 amountDesiredA, 
-    uint256 amountDesiredB, uint256 amountMinA, uint256 amountMinB, address to) public returns (
-        uint256 amountA, uint256 amountB, uint256 liquidity
-    ) {
+        uint256 amountDesiredB, uint256 amountMinA, uint256 amountMinB, address to) 
+        public returns ( uint256 amountA, uint256 amountB, uint256 liquidity) {
 
         if (factory.pairings(tokenA, tokenB) == address(0)){
             factory.createPairing(tokenA, tokenB);
         }
+
 
         (amountA, amountB) = _calculateLiquidity(
             tokenA,
@@ -43,9 +49,15 @@ contract Router {
             tokenA,
             tokenB
         );
+
+
         _safeTransferFrom(tokenA, msg.sender, pairAddress, amountA);
         _safeTransferFrom(tokenB, msg.sender, pairAddress, amountB);
+
+
+        // this is where error is
         liquidity = IPair(pairAddress).mint(to);
+
 
     }
 
@@ -90,10 +102,14 @@ contract Router {
         (uint256 reserveA, uint256 reserveB) = SwapLibrary.getReserves(address(factory),
             tokenA, tokenB);
 
+
+
         if (reserveA == 0 && reserveB == 0){
             (amountA, amountB) = (amountDesiredA, amountDesiredB);
         } else {
             uint256 amountOptimalB = SwapLibrary.quote(amountDesiredA, reserveA, reserveB);
+
+
             if (amountOptimalB <= amountDesiredB){
                 if (amountOptimalB <= amountMinB){
                     revert InsufficientBAmount();
@@ -102,6 +118,9 @@ contract Router {
             } else {
 
                 uint256 amountOptimalA = SwapLibrary.quote(amountDesiredB, reserveB, reserveA);
+
+
+
                 assert(amountOptimalA <= amountDesiredA);
                 if (amountOptimalA <= amountMinA){
                     revert InsufficientAAmount();

@@ -5,6 +5,8 @@ import "solmate/tokens/ERC20.sol";
 import "./libraries/Math.sol";
 import "./libraries/UQ112x112.sol";
 import "./interfaces/ISwapCallee.sol";
+import "forge-std/console2.sol";
+
 
 
 error InsufficientLiquidityMinted();
@@ -56,29 +58,31 @@ contract Pair is ERC20, Math {
     constructor() ERC20("Coinswap Pair", "CSP", 18){}
 
     function initialize(address _token0, address _token1) public {
+
         if (token0 != address(0) || token1 != address(0)){
             revert AlreadyInitialized();
         }
 
         token0 = _token0;
         token1 = _token1;
+
+
     }
 
-    function mint(address to) public {
+    function mint(address to) public returns (uint256 liquidity) {
        (uint112 reserve0_, uint112 reserve1_, ) = getReserves();
         uint256 balance0 = IERC20(token0).balanceOf(address(this));
         uint256 balance1 = IERC20(token1).balanceOf(address(this));
         uint256 amount0 = balance0 - reserve0_;
         uint256 amount1 = balance1 - reserve1_;
 
-        uint256 liquidity;
-
         if (totalSupply == 0){
             liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY;
             _mint(address(0), MINIMUM_LIQUIDITY);
         } else {
-            liquidity = Math.min((amount0 * totalSupply) / reserve0, (amount1 * totalSupply) / reserve1);
+            liquidity = Math.min((amount0 * totalSupply) / reserve0_, (amount1 * totalSupply) / reserve1_);
         } 
+
 
         if (liquidity <= 0)
             revert InsufficientLiquidityMinted();
@@ -88,7 +92,7 @@ contract Pair is ERC20, Math {
         _update(balance0, balance1, reserve0_, reserve1_);
 
         emit Mint(to, amount0, amount1);
-        
+
     }
 
     function burn(address to) public returns (uint256 amount0, uint256 amount1) {
@@ -175,7 +179,7 @@ contract Pair is ERC20, Math {
         uint32
     )
     {
-        return (reserve0, reserve1, 0);
+        return (reserve0, reserve1, blockTimestampLast);
     }
 
     function _update(uint256 balance0, uint256 balance1, uint112 reserve0_, uint112 reserve1_) private {
